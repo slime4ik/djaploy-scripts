@@ -4,7 +4,9 @@
 set -e
 export DEBIAN_FRONTEND=noninteractive
 
-apt-get update -y
+# не валимся, если споткнулся СТОРОННИЙ репозиторий (напр. свежий PPA без пакетов
+# под новую Ubuntu) — нужные пакеты лежат в основном репозитории Ubuntu, он доступен.
+apt-get update -y || echo "(apt-get update частично не прошёл — продолжаю)"
 apt-get install -y fail2ban curl ca-certificates git
 
 # fail2ban: бан IP после 5 неудачных попыток SSH на 1 час
