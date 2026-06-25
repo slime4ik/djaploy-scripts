@@ -18,7 +18,7 @@ cd "$DIR" && $COMPOSE down --remove-orphans || true
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Режим 3 — УДАЛИТЬ ПОЛНОСТЬЮ (purge): «как будто нас и не было».
-cd "$DIR" && $COMPOSE down -v --remove-orphans || true   # контейнеры + volumes (данные!)
+cd "$DIR" && $COMPOSE down -v --rmi local --remove-orphans || true   # контейнеры + volumes (данные!) + собранные образы
 rm -rf "$DIR"                                            # папка проекта
 
 # убираем наш ключ доступа из authorized_keys (больше не сможем зайти)
@@ -31,8 +31,11 @@ $SUDO systemctl disable --now awg-quick@awg0 2>/dev/null || true
 $SUDO awg-quick down awg0 2>/dev/null || true
 $SUDO ip link delete awg0 2>/dev/null || true
 $SUDO rm -rf /etc/amnezia/amneziawg /etc/sysctl.d/99-djaploy-wg.conf 2>/dev/null || true
-$SUDO iptables -D INPUT -p udp --dport 51820 -j ACCEPT 2>/dev/null || true
-$SUDO ufw delete allow 51820/udp 2>/dev/null || true
+# порт VPN мог быть автоподобран (51820..51830) — чистим весь диапазон
+for pp in $(seq 51820 51830); do
+  $SUDO iptables -D INPUT -p udp --dport "$pp" -j ACCEPT 2>/dev/null || true
+  $SUDO ufw delete allow "$pp"/udp 2>/dev/null || true
+done
 
 # Что мы НЕ трогаем даже при полном удалении: Docker и системные пакеты (вдруг
 # нужны другим проектам), твой root-доступ, другие папки и данные на сервере.
