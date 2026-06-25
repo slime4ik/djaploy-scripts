@@ -7,10 +7,11 @@ if ! command -v docker >/dev/null 2>&1; then
   curl -fsSL https://get.docker.com | sh
 fi
 
-# зеркала реестра — чтобы образы тянулись стабильнее
+# зеркала реестра + надёжный DNS (8.8.8.8/1.1.1.1) — чтобы образы тянулись стабильнее,
+# а сборка резолвила имена даже при кривом DNS провайдера (частая беда RU-серверов).
 mkdir -p /etc/docker
 cat > /etc/docker/daemon.json <<'JSON'
-{ "registry-mirrors": ["https://mirror.gcr.io", "https://dockerhub.timeweb.cloud"], "userland-proxy": false }
+{ "registry-mirrors": ["https://mirror.gcr.io", "https://dockerhub.timeweb.cloud"], "userland-proxy": false, "dns": ["8.8.8.8", "1.1.1.1"] }
 JSON
 systemctl restart docker || true
 
