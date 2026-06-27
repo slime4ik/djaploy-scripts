@@ -3,6 +3,11 @@
 set -e
 
 if ! command -v docker >/dev/null 2>&1; then
+  # на свежих серверах фоновый unattended-upgrades держит apt-замок — ждём, иначе
+  # установка падает с "Could not get lock /var/lib/dpkg/lock-frontend".
+  while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+    echo "apt занят (фоновое обновление системы) — жду освобождения замка…"; sleep 5
+  done
   echo "Docker не найден — устанавливаю официальный скрипт get.docker.com…"
   curl -fsSL https://get.docker.com | sh
 fi

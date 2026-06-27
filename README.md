@@ -83,22 +83,36 @@ CSRF_TRUSTED_ORIGINS=https://<твой-домен>
 DEBUG=False
 ```
 
-### 5. HTTPS через Caddy (Let's Encrypt)
-Caddy сам выпускает и продлевает SSL-сертификат и проксирует запросы в твоё приложение.
-Деплой без простоя — на время пересборки запросы придерживаются, а не падают в 502:
+### 5. HTTPS через общий Caddy-шлюз (Let's Encrypt)
+Один Caddy на весь сервер сам выпускает и продлевает SSL для всех твоих сайтов и
+раскидывает запросы по нужным контейнерам через общую docker-сеть (алиас `app-<проект>`).
+Поэтому на одном сервере спокойно живёт несколько проектов — за порты 80/443 они не
+дерутся. Деплой без простоя: на время пересборки запросы придерживаются, а не падают в 502:
 ```caddy
+# базовый /etc/caddy/Caddyfile просто подключает сниппет на каждый сайт:
+import sites/*.caddy
+
+# сниппет одного сайта (sites/<твой-домен>.caddy):
 <твой-домен> {
-    reverse_proxy <твой-сервис>:<порт> {
-        lb_try_duration 30s
-        lb_try_interval 250ms
+    encode zstd gzip
+    route {
+        reverse_proxy app-<твой-проект>:<порт> {
+            lb_try_duration 30s
+            lb_try_interval 250ms
+        }
     }
 }
 ```
+(полный пример со static/media, security-заголовками и защитой путей — в `scripts/Caddyfile.example`)
 
 ### 6. Сборка и запуск
 ```bash
 cd /opt/djaploy/<твой-репо>
-docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build --remove-orphans
+# поднимаем контейнеры проекта
+docker compose up -d --build --remove-orphans
+# подключаем контейнер к общей сети шлюза под алиасом app-<проект>,
+# чтобы Caddy-шлюз нашёл его и проксировал
+docker network connect --alias app-<твой-проект> djaploy <id-контейнера>
 ```
 
 ---

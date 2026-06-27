@@ -1,21 +1,58 @@
-# djaploy — конфиг Caddy: автоматический HTTPS (Let's Encrypt) + reverse proxy.
-# Caddy сам выпускает и продлевает SSL-сертификат для твоего домена — руками ничего не нужно.
-# Это упрощённый пример того, что мы генерируем; реальный собирается под твой проект.
+# djaploy — Caddy-шлюз. Один Caddy на весь сервер: выпускает HTTPS (Let's Encrypt),
+# сам продлевает сертификаты и раскидывает запросы по всем твоим сайтам. Поэтому на
+# одном сервере спокойно живёт несколько проектов — за порты 80/443 они не дерутся.
+#
+# Caddy крутится в Docker, держит 80/443 и ходит к контейнерам по общей docker-сети
+# (по алиасу app-<проект>), а не по host-портам — так надёжнее.
+#
+# Сам /etc/caddy/Caddyfile коротенький, просто подтягивает по файлу на каждый сайт:
 
-your-domain.com {
-    # Деплой без простоя: на время пересборки контейнера запросы придерживаются
-    # и ретраятся, а не падают в 502. Пользователи не замечают обновления.
-    reverse_proxy your-service:8000 {
-        lb_try_duration 30s
-        lb_try_interval 250ms
-    }
+import sites/*.caddy
 
-    # WebSocket (ws/wss) проксируется reverse_proxy автоматически — отдельной настройки не нужно.
-}
 
-# (опционально) Grafana под /grafana, если включён мониторинг и закрыт VPN:
-# your-domain.com {
-#     handle_path /grafana/* {
-#         reverse_proxy grafana:3000
+# Дальше — как выглядит конфиг одного сайта (sites/твой-домен.caddy). Реальный
+# собираем под твой проект, тут для примера:
+#
+# твой-домен {
+#     encode zstd gzip
+#
+#     # обычные security-заголовки
+#     header {
+#         Strict-Transport-Security "max-age=31536000;"
+#         X-Content-Type-Options    "nosniff"
+#         X-Frame-Options           "SAMEORIGIN"
+#         -Server
+#     }
+#
+#     route {
+#         # если включил защиту путей — /admin и подобное отдаём только из-под VPN,
+#         # остальным 404
+#         @protected {
+#             path /admin /admin/ /admin/*
+#             not remote_ip 10.8.0.0/24
+#         }
+#         respond @protected "404 Not Found" 404
+#
+#         # Grafana под /grafana, если поднял мониторинг
+#         handle /grafana/* {
+#             reverse_proxy grafana-твой-проект:3000
+#         }
+#
+#         # статику отдаём прямо с диска (из /opt/djaploy/<проект>/_static, он
+#         # примонтирован к Caddy как /srv) — не гоняем через приложение
+#         handle_path /static/* {
+#             root * /srv/твой-проект/_static
+#             file_server
+#         }
+#
+#         # само приложение. lb_try_duration придерживает запросы на пересборке,
+#         # чтобы при деплое юзер не словил 502
+#         reverse_proxy app-твой-проект:8000 {
+#             header_up X-Real-IP {http.request.remote.host}
+#             lb_try_duration 30s
+#             lb_try_interval 250ms
+#         }
 #     }
 # }
+#
+# ws/wss reverse_proxy тянет сам, отдельно настраивать не надо.
