@@ -20,5 +20,7 @@ chown -R "$USER:$USER" "/home/$USER/.ssh"
 
 # передаём этому пользователю владение папкой проекта
 chown -R "$USER:$USER" "$DIR"
+# и папкой общего Caddy-шлюза — чтобы non-root мог обновлять его конфиг при деплоях
+chown -R "$USER:$USER" /opt/djaploy/_gateway 2>/dev/null || true
 
 echo "Готово — дальнейшие деплои идут под '$USER', root не тронут."

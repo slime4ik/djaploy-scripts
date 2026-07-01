@@ -6,7 +6,8 @@
 set -e
 
 REPO="owner/name"
-DIR="/opt/djaploy/${REPO##*/}"
+NAME="${REPO##*/}"
+DIR="/opt/djaploy/$NAME"
 
 mkdir -p /opt/djaploy
 rm -rf "$DIR"               # чистим ТОЛЬКО нашу папку этого проекта, больше ничего
@@ -19,9 +20,20 @@ git -c http.extraheader="AUTHORIZATION: basic <base64(x-access-token:TOKEN)>" \
 # в проекте должен быть docker-compose.yml (или compose.yml)
 test -f "$DIR/docker-compose.yml" || test -f "$DIR/compose.yml" || { echo "NO_COMPOSE"; exit 7; }
 
-# Сборка и запуск. Для веб-приложений добавляем наш overlay с Caddy (HTTPS).
-# Для ботов/воркеров — только твой docker-compose.yml.
 cd "$DIR"
+
+# Собираем и поднимаем. Для веба поверх твоего compose кладём наш overlay
+# docker-compose.caddy.yml — сам Caddy он НЕ содержит: HTTPS раздаёт ОДИН общий
+# Caddy-шлюз на сервер (см. Caddyfile.example и README). Overlay лишь добавляет
+# опциональный мониторинг и bind-volume'ы под статику/медиа. Бот/воркер — только
+# твой docker-compose.yml, без overlay.
 docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build --remove-orphans
+
+# Веб-проект цепляем к общей docker-сети шлюза "djaploy" под алиасом app-<repo> —
+# так общий Caddy находит контейнер по имени и проксирует на него, без публикации
+# host-портов (за 80/443 сайты не дерутся). Бота/воркера не цепляем — у него нет
+# входящих портов. ("web" ниже — имя твоего сервиса из compose, по умолчанию web.)
+CID=$(docker compose -f docker-compose.yml -f docker-compose.caddy.yml ps -q web | head -1)
+docker network connect --alias "app-$NAME" djaploy "$CID"
 
 echo "Контейнеры собраны и запущены."

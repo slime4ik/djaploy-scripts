@@ -4,7 +4,10 @@
 # Прозрачно: мы трогаем ТОЛЬКО то, что сами разворачивали. Твои чужие данные,
 # другие проекты и системные настройки — не касаемся.
 
-DIR="/opt/djaploy/<repo>"
+REPO="owner/name"
+NAME="${REPO##*/}"
+DIR="/opt/djaploy/$NAME"
+GW="/opt/djaploy/_gateway"
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.caddy.yml"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -36,6 +39,18 @@ for pp in $(seq 51820 51830); do
   $SUDO iptables -D INPUT -p udp --dport "$pp" -j ACCEPT 2>/dev/null || true
   $SUDO ufw delete allow "$pp"/udp 2>/dev/null || true
 done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Снимаем сайт с ОБЩЕГО Caddy-шлюза (и при остановке, и при полном удалении) —
+# просто удаляем его сниппет. Остальные сайты на сервере продолжают работать,
+# как будто этого и не было. Если сайт был последним — гасим шлюз целиком (reload
+# на пустом конфиге бы упал). Ботов/воркеров не касается — у них сниппета нет.
+rm -f "$GW/sites/$NAME.caddy"
+if [ -n "$(ls -A "$GW/sites" 2>/dev/null)" ]; then
+  (cd "$GW" && docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile) 2>/dev/null || true
+else
+  (cd "$GW" && docker compose down) 2>/dev/null || true
+fi
 
 # Что мы НЕ трогаем даже при полном удалении: Docker и системные пакеты (вдруг
 # нужны другим проектам), твой root-доступ, другие папки и данные на сервере.
